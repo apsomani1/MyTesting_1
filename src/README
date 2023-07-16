@@ -1,0 +1,198 @@
+#include <Arduino.h>
+#include <stdio.h>
+#include<string.h>
+#include"API001_Network.h"
+#include"ApplianceComponentOperationMode.h"
+#include <Arduino_FreeRTOS.h>
+#include <semphr.h>  // add the FreeRTOS functions for Semaphores (or Flags).
+
+//define task handles
+TaskHandle_t TaskBlink_Handler;
+TaskHandle_t TaskSerial_Handler;
+
+SemaphoreHandle_t xSerialSemaphore;
+
+// define two Tasks for DigitalRead & AnalogRead
+void TaskDigitalRead( void *pvParameters );
+void TaskAnalogRead( void *pvParameters );
+
+
+
+extern unsigned int RunningMinute;
+unsigned long delayStart = 0; // the time the delay started
+bool delayRunning = false; // true if still waiting for delay to finish
+
+
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(13,OUTPUT);
+  digitalWrite(13,HIGH);
+  delayStart = millis();   // start delay
+  delayRunning = true; // not finished yet
+  Initialize_ApplianceComponentOperationMode();
+  if ( xSerialSemaphore == NULL )  // Check to confirm that the Serial Semaphore has not already been created.
+  {
+    xSerialSemaphore = xSemaphoreCreateMutex();  // Create a mutex semaphore we will use to manage the Serial Port
+    if ( ( xSerialSemaphore ) != NULL )
+      xSemaphoreGive( ( xSerialSemaphore ) );  // Make the Serial Port available for use, by "Giving" the Semaphore.
+  }
+
+   // Now set up two Tasks to run independently.
+  xTaskCreate(
+    TaskDigitalRead
+    ,  "DigitalRead"  // A name just for humans
+    ,  128  // This stack size can be checked & adjusted by reading the Stack Highwater
+    ,  NULL //Parameters for the task
+    ,  1  // Priority, with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest.
+    ,  NULL ); //Task Handle
+
+  xTaskCreate(
+    TaskAnalogRead
+    ,  "AnalogRead" // A name just for humans
+    ,  128  // Stack size
+    ,  NULL //Parameters for the task
+    ,  2  // Priority
+    ,  NULL ); //Task Handle
+}
+
+void loop() {
+
+  //  if (delayRunning && ((millis() - delayStart) >= 1000)) {
+  //   delayRunning = false; // // prevent this code being run more then once
+  //   digitalWrite(13, LOW); // turn led off
+  //   Serial.println("Turned LED Off");
+  //   delayStart = millis();
+  // }
+  // else if(delayRunning == false &&((millis() - delayStart) >= 1000)){
+  //   delayRunning = true; // // prevent this code being run more then once
+  //   digitalWrite(13, HIGH); // turn led off
+  //   delayStart = millis();
+  // }
+
+  /*if(((millis() - delayStart) >= 1000)){
+     RunningMinute ++;
+     if((RunningMinute/10) == 1){
+        UpdateRunningHours(0);
+        RunningMinute = 0;
+     }
+     Serial.print("RunningMinute: ");
+     Serial.println(RunningMinute);
+     delayStart = millis();
+  }*/
+
+ /*
+  digitalWrite(13,HIGH);
+  delay(2000);
+  digitalWrite(13,LOW);
+  delay(1000);
+  REVEAL_COMMAND_TYPE *command ;//= (REVEAL_COMMAND_TYPE *)NULL;
+  // command= (REVEAL_COMMAND_TYPE *)NULL;
+  // for (int i = 0; i < REVEAL_PAYLOAD_SIZE; i++)
+  //   {
+  //       command->data[i] = 0;
+  //       delay(50);
+  //   }
+  //command->PACKET = false;
+  if( command->PACKET == true){
+    Serial.println("DATA1");
+  }
+  else if(command->PACKET == false){
+    Serial.println("DATA2");
+  }
+
+  Reveal__NewCommand2(command,API1,OPCODE2);
+  Serial.print("LENG:");
+  Serial.println(command->length);
+  Reveal__AddDataU8(command,0xB);
+  PublishToSerial(command);
+
+  //  REVEAL_COMMAND_TYPE *command = (REVEAL_COMMAND_TYPE *)NULL;
+  // Reveal__NewCommand1(command,API1,OPCODE2);
+  // Serial.print("length: ");
+  // Serial.println(command->length);
+  // Reveal__AddDataU8(command,0xA);
+  // Reveal__AddDataU16(command,Value);
+  // Reveal__AddDataU8(command,0xA);
+  // Reveal__AddDataU16(command,Value);
+  // Serial.print("length: ");
+  // Serial.println(command->length);
+  // Reveal__AddDataU8(command,0xA);
+  // Reveal__AddDataU16(command,Value);
+  // Reveal__AddDataU8(command,0xA);
+  // Reveal__AddDataU16(command,Value);
+  // Serial.print("length: ");
+  // Serial.println(command->length);
+  // PublishToSerial(command);delay(1000);
+  // Serial.print("length: ");
+  // Serial.println(command->length);
+  // command = ((REVEAL_COMMAND_TYPE *)NULL);
+  // free(command);
+  //if(ERROR_PACKET){
+    //Serial.println("Error: buffer not null .....!");
+  // }
+*/
+}
+
+/*--------------------------------------------------*/
+/*---------------------- Tasks ---------------------*/
+/*--------------------------------------------------*/
+
+void TaskDigitalRead( void *pvParameters __attribute__((unused)) )  // This is a Task.
+{
+  for (;;) // A Task shall never return or exit.
+  {
+     
+    // See if we can obtain or "Take" the Serial Semaphore.
+    // If the semaphore is not available, wait 5 ticks of the Scheduler to see if it becomes free.
+    if ( xSemaphoreTake( xSerialSemaphore, ( TickType_t ) 5 ) == pdTRUE )
+    {
+      // We were able to obtain or "Take" the semaphore and can now access the shared resource.
+      // We want to have the Serial Port for us alone, as it takes some time to print,
+      // so we don't want it getting stolen during the middle of a conversion.
+      // print out the state of the button:
+      REVEAL_COMMAND_TYPE *command ;
+      //Reveal__NewCommand2(command,API1,OPCODE2);
+    //Serial.print("LENG:");
+    //Serial.println(command->length);
+    //Reveal__AddDataU8(command,0xB);
+    //PublishToSerial(command);
+
+      xSemaphoreGive( xSerialSemaphore ); // Now free or "Give" the Serial Port for others.
+    }
+
+    vTaskDelay(1);  // one tick delay (15ms) in between reads for stability
+  }
+}
+
+void TaskAnalogRead( void *pvParameters __attribute__((unused)) )  // This is a Task.
+{
+  Serial.println("Initialize Appliance Component");
+  Initialize_ApplianceComponentOperationMode();
+  
+  for (;;)
+  {
+    // See if we can obtain or "Take" the Serial Semaphore.
+    // If the semaphore is not available, wait 5 ticks of the Scheduler to see if it becomes free.
+    if ( xSemaphoreTake( xSerialSemaphore, ( TickType_t ) 5 ) == pdTRUE )
+    {
+      // We were able to obtain or "Take" the semaphore and can now access the shared resource.
+      // We want to have the Serial Port for us alone, as it takes some time to print,
+      // so we don't want it getting stolen during the middle of a conversion.
+      // print out the value you read:
+    if(((millis() - delayStart) >= 1000)){
+      RunningMinute ++;
+      if((RunningMinute/60) == 1){
+        UpdateRunningHours(0);
+        RunningMinute = 0;
+     }
+      //Serial.print("RunningMinute: ");
+      //Serial.println(RunningMinute);
+      delayStart = millis();
+    }
+
+      xSemaphoreGive( xSerialSemaphore ); // Now free or "Give" the Serial Port for others.
+    }
+    vTaskDelay(1);  // one tick delay (15ms) in between reads for stability
+  }
+}
